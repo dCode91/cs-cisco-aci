@@ -18,9 +18,9 @@
 #! @result FAILURE: Operation failed (statusCode is not contained in valid_http_status_codes list).
 #!!#
 ########################################################################################################################
-namespace: cisco_aci.authentication
+namespace: test
 flow:
-  name: obtain_token_login
+  name: test_json
   inputs:
     - url: "${get_sp('cisco_aci_base_url')+'/api/aaaLogin.json'}"
     - authentication_auth_type: "${get_sp('cisco_aci_auth_type')}"
@@ -28,28 +28,31 @@ flow:
     - password:
         sensitive: true
   workflow:
-    - http_client_action:
+    - append:
         do:
-          io.cloudslang.base.http.http_client_action:
-            - method: POST
-            - content_type: application/json
-            - body: "${'{ \"aaaUser\": { \"attributes\": { \"name\": \"'+ username  +'\", \"pwd\": \"' + password + '\"}}}'}"
-            - url: '${url}'
-            - auth_type: '${authentication_auth_type}'
-            - headers: "${''}"
+          io.cloudslang.base.strings.append:
+            - origin_string: ''
+            - text: |-
+                ${'''{"totalCount": "1",
+                    "imdata": [
+                        {
+                            "error": {
+                                "attributes": {
+                                    "code": "401",
+                                    "text": "User credential is incorrect - FAILED local authentication"
+                                }
+                            }
+                        }
+                    ]
+                }'''}
         publish:
-          - return_result
-          - error_message
-          - status_code
-          - return_code
-          - response_headers
+          - return_result: '${new_string}'
         navigate:
           - SUCCESS: is_401
-          - FAILURE: on_failure
     - is_401:
         do:
           io.cloudslang.base.strings.string_equals:
-            - first_string: "${cs_json_query(return_result,'$.imdata[0].error.attributes.code')}"
+            - first_string: "${(cs_json_query(return_result,'$.imdata[0].error.attributes.code'))[2,-2]}"
             - second_string: '401'
         navigate:
           - SUCCESS: FAILURE
@@ -67,9 +70,6 @@ flow:
 extensions:
   graph:
     steps:
-      http_client_action:
-        x: 80
-        'y': 160
       is_401:
         x: 360
         'y': 160
@@ -80,6 +80,9 @@ extensions:
           b502d1cf-a953-bce6-37b3-9065286f21db:
             targetId: 63867063-8e00-25a4-f277-14a0f919666a
             port: FAILURE
+      append:
+        x: 80
+        'y': 160
     results:
       SUCCESS:
         63867063-8e00-25a4-f277-14a0f919666a:
